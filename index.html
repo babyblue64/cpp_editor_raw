@@ -3,141 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Judge0CodeEditor</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js"></script> <!--codemirror main script-->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css"> <!--codemirror main styles-->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/python/python.min.js"></script>  <!--codemirror python mode-->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/monokai.min.css"> <!--codemirror monokai theme-->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/display/placeholder.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.7/axios.min.js"></script> <!--axios-->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/clike/clike.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/monokai.min.css">
+    <title>CodeEditor CE</title>
     <style>
         body {
             display: flex;
             justify-content: center;
             align-items: center;
             flex-direction: column;
-            background-color: #C0C0C0;
-            font-family: Tahoma;
         }
         #editor {
-            height: 480px;
+            height: 500px;
             width: 700px;
             /* border: 2px solid red; */
-            border-width:5px;
-            border-color: #808080 #ffffff #ffffff #808080;
-            border-style:solid;
-        }
-        button {
-            margin-top: 20px;
-            height: 30px;
-            width: 90px;
-            /* border-width:3px;
-            border-color: #ffffff #808080 #808080 #ffffff;
-            border-style:solid; */
-        }
-        #output {
-            /* border: 2px solid red; */
-            background-color: #272822;
-            margin-top: 20px;
-            height: 60px;
-            width: 700px;
-            color: aliceblue;
-            border-width:5px;
-            border-color: #808080 #ffffff #ffffff #808080;
-            border-style:solid;
         }
         .CodeMirror {
             height: 100%;
         }
+        button {
+            height: 100px;
+            width: 100px;
+            margin-top: 10px;
+        }
+        #outputDiv {
+            display: flex;
+            height: 70px;
+            width: 700px;
+            margin-top: 10px;
+            /* border: 2px solid red; */
+        }
+        #outputDiv #output {
+            overflow-y: auto;
+            width: 590px;
+            height: 100px;
+            margin-top: 10px;
+            margin-left: 10px;
+            color: aliceblue;
+            background-color: #272822;
+            /* border: 2px solid red; */
+        }
     </style>
 </head>
 <body>
-    <p style="margin-top: 0; background-color: #000080; color: #FFFFFF; width: 100%;">Python Editor</p>
-    <div id="editor"></div>
-    <button id="submit-button">RUN</button>
-    <div id="output"></div>
-    <script>
+        <div id="editor"></div>
+        <div id="outputDiv">
+            <button onclick="submitCode()">RUN</button>
+            <div id="output"></div>
+        </div>
+</body>
+<script>
+    let editor;
 
-        const judge0ApiEndpointUrl = 'https://judge0-ce.p.rapidapi.com/submissions';
-        // const apiKey = ''
-    
-        async function submitCode(sourceCode, languageId) {
-            const options = { 
-                method: 'POST',
-                url: judge0ApiEndpointUrl,
-                headers: {
-                    'content-type': 'application/json',
-                    'X-RapidAPI-Key': apiKey,
-                    'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com'
-                },
-                data: {
-                    source_code: sourceCode,
-                    language_id: languageId
-                }
-            };
-    
-            try {
-                const response = await axios.request(options);
-                return response.data.token;
-            } catch (error) {
-                console.error('error in submission', error);
-                throw error;
-            }
-        }
-    
-        async function getSubmissionResult(token) {
-            const options = {
-                method: 'GET',
-                url: `${judge0ApiEndpointUrl}/${token}`,
-                headers: {
-                    'X-RapidAPI-Key': apiKey,
-                    'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com'
-                }
-            };
-    
-            try {
-                const response = await axios.request(options);
-                return response.data;
-            } catch (error) {
-                console.error('error getting results: ', error);
-                throw error;
-            }
-        }
-    
-        let editor;
-    
+    window.onload = () => {
         editor = CodeMirror(document.getElementById('editor'), {
-            mode: "python",
+            mode: "text/x-c++src",
             theme: "monokai",
             lineNumbers: true,
             lineWrapping: true,
-            placeholder: 'API calls reached limit, come back later',
-        });
-    
-        const submitButton = document.getElementById('submit-button');
-        submitButton.addEventListener('click', async () => {
-            const sourceCode = editor.getValue();
-            const languageId = 71;
-    
-            try {
-                const token = await submitCode(sourceCode, languageId);
-                console.log('submission token: ', token);
-    
-                let result;
-                do {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    result = await getSubmissionResult(token);
-                } while (result.status.id <= 2);
-    
-                console.log('submission result:', result.stdout);
-                const output = document.getElementById('output');
-                output.innerHTML = result.stdout;
-                
-            } catch (error) {
-                console.error('error in submission', error);
-            }
         })
+    }
+
+    function parseTextResponse(response) {
+        var lines = response.split('\n');
+        var result = {
+            stdout: '',
+            stderr: '',
+            exitCode: null
+        }
+
+        var currentSection = null;
+
+        for(var i = 0 ; i < lines.length ; i++) {
+            var line = lines[i].trim();
+
+            if (line === '') continue;
+
+            if (line.indexOf('Standard out:') === 0) {
+                currentSection = 'stdout';
+                continue;
+            } else if (line.indexOf('Standard error:') === 0) {
+                currentSection = 'stderr';
+                continue;
+            } else if (line.indexOf('exited with result code') !== -1) {
+                result.exitCode = parseInt(line.split(' ').pop(), 10);
+                continue;
+            }
+
+            if (currentSection) {
+                result[currentSection] += line + '\n';
+            }
+        }
+
+        result.stdout = result.stdout.trim();
+        result.stderr = result.stderr.trim();
+
+        return result;
+    }
+
+    async function compileCode(sourceCode) {
+
+        ApiUrl = "https://godbolt.org/api/compiler/g132/compile";
+
+        const requestOptions = {
+            method: 'POST',
+            headers: { 'Content-Type' : 'application/json'},
+            body: JSON.stringify({
+                source: sourceCode,
+                options: {
+                    userArguments: "-std=c++17 -O2",
+                    compilerOptions: {
+                        skipAsm: true,
+                        executorRequest: true
+                    },
+                    filters: { execute: true }
+                }
+            })
+        }
+
+        try {
+            const response = await fetch(ApiUrl, requestOptions);
+            const textResponse = await response.text();
+            const responseObj = parseTextResponse(textResponse);
+
+            console.log(`stdout: ${responseObj.stdout} \nstderr: ${responseObj.stderr} \nexitcode: ${responseObj.exitCode}`);
+            return responseObj;
+
+        } catch (error) {
+            console.error('Error:', error);
+            return null;
+        }
+    }
+
+    function submitCode() {
+        const sourceCode = editor.getValue();
+        const outputWindow = document.getElementById('output');
+        compileCode(sourceCode)
+            .then(output => outputWindow.innerHTML = `stdout: <br>${output.stdout.replace(/\n/g, '<br>')} <br> stderr: <br>${output.stderr} <br> exitCode: <br>${output.exitCode}`);
+    }
     
-    </script>
-</body>
+</script>
 </html>
