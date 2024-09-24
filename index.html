@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/clike/clike.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/monokai.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/addon/display/placeholder.min.js"></script>
     <title>CodeEditor CE</title>
     <style>
         body {
@@ -23,40 +24,92 @@
         .CodeMirror {
             height: 100%;
         }
+        #outputDiv {
+            display: flex;
+            height: 110px;
+            width: 700px;
+            margin-top: 10px;
+            /* border: 2px solid red; */
+        }
         button {
             height: 100px;
             width: 100px;
             margin-top: 10px;
         }
-        #outputDiv {
-            display: flex;
-            height: 70px;
-            width: 700px;
-            margin-top: 10px;
-            /* border: 2px solid red; */
-        }
-        #outputDiv #output {
-            overflow-y: auto;
-            width: 590px;
+        .testCase {
             height: 100px;
-            margin-top: 10px;
-            margin-left: 10px;
-            color: aliceblue;
-            background-color: #272822;
+            width: 100px;
+            margin: 10px;
+            background-color: #333333;
             /* border: 2px solid red; */
         }
     </style>
 </head>
 <body>
+        <select id="questions">
+            <option value='addNumbers'>write function: addNumbers</option>
+            <option value='reverseString'>write function: reverseString</option>
+            <option value='isPrime'>write function: isPrime</option>
+        </select>
         <div id="editor"></div>
         <div id="outputDiv">
-            <button onclick="submitCode()">RUN</button>
-            <div id="output"></div>
+            <button onclick="submitCode()" id="run">RUN</button>
+            <div class="testCase" id="testCase1"></div>
+            <div class="testCase" id="testCase2"></div>
+            <div class="testCase" id="testCase3"></div>
+            <div class="testCase" id="testCase4"></div>
+            <div class="testCase" id="testCase5"></div>
         </div>
 </body>
 <script>
-    let editor;
 
+    const savedProblems = {
+
+        addNumbers: {
+            // funcName: 'addNumbers',
+            functionShell: "int addNumbers(int a, int b) { \n//write here and return the output \n}",
+            testCases: [
+                { inputs: [1, 2], expected: 3},
+                { inputs: [0, 0], expected: 0},
+                { inputs: [-1, -10], expected: -11},
+                { inputs: [2, -5], expected: -3},
+                { inputs: [10, 10], expected: 20},
+            ]
+        },
+        reverseString: {
+            // funcName: 'reverseString',
+            functionShell: "string reverseString(const string& input) { \n//write here and return the output \n}",
+            testCases: [
+                { inputs: ['apple'], expected: 'elppa'},
+                { inputs: ['haha'], expected: 'ahah'},
+                { inputs: [''], expected: ''},
+                { inputs: ['a'], expected: 'a'},
+                { inputs: ['world'], expected: 'dlrow'},
+            ]
+        },
+        isPrime: {
+            // funcName: 'isPrime',
+            functionShell: "bool isPrime(int number) { \n//write here and return the output \n}",
+            testCases: [
+                { inputs: [1], expected: 0},
+                { inputs: [3], expected: 1},
+                { inputs: [101], expected: 1},
+                { inputs: [2707], expected: 1},
+                { inputs: [341], expected: 0},
+            ]
+        }
+    }
+
+    let currentQuestion = document.getElementById('questions').value;
+    let funcShell = savedProblems[currentQuestion].functionShell;
+    let dropDown = document.getElementById('questions');
+    dropDown.addEventListener('change', () => {
+        currentQuestion = document.getElementById('questions').value;
+        funcShell = savedProblems[currentQuestion].functionShell;
+        editor.setValue(funcShell);
+    })
+
+    let editor;
     window.onload = () => {
         editor = CodeMirror(document.getElementById('editor'), {
             mode: "text/x-c++src",
@@ -64,6 +117,7 @@
             lineNumbers: true,
             lineWrapping: true,
         })
+        editor.setValue(funcShell);
     }
 
     function parseTextResponse(response) {
@@ -128,7 +182,7 @@
             const textResponse = await response.text();
             const responseObj = parseTextResponse(textResponse);
 
-            console.log(`stdout: ${responseObj.stdout} \nstderr: ${responseObj.stderr} \nexitcode: ${responseObj.exitCode}`);
+            // console.log(`stdout: ${responseObj.stdout} \nstderr: ${responseObj.stderr} \nexitcode: ${responseObj.exitCode}`);
             return responseObj;
 
         } catch (error) {
@@ -137,12 +191,50 @@
         }
     }
 
+    function convertCode(userCode, functionName, inputs) {
+        const functionCall = `${functionName}(${inputs.join(', ')});`;
+        fullCode = `#include <bits/stdc++.h>\nusing namespace std;\n${userCode}\nint main() {\ncout<<${functionCall} \nreturn 0;\n}`;
+        return fullCode;
+    } 
+
+    async function convertTestCases (testCases, userCode, functionName) {
+        const results =[];
+        for(let i = 0 ; i < testCases.length ; i++) {
+            let testCase = testCases[i];
+            const result = await compileCode(convertCode(userCode, functionName, testCase.inputs))
+            const ifPassed = result.stdout.trim() === testCase.expected.toString();
+            results.push({
+                testCase: i + 1,
+                passed: ifPassed,
+                input: testCase.inputs,
+                expected: testCase.expected,
+                actual: result.stdout.trim()
+            });
+            // console.log(ifPassed);
+        }
+        return results;
+    }
+
     function submitCode() {
         const sourceCode = editor.getValue();
-        const outputWindow = document.getElementById('output');
-        compileCode(sourceCode)
-            .then(output => outputWindow.innerHTML = `stdout: <br>${output.stdout.replace(/\n/g, '<br>')} <br> stderr: <br>${output.stderr} <br> exitCode: <br>${output.exitCode}`);
+        const testCaseBulbs = Array.from(document.getElementsByClassName('testCase'));
+        document.getElementById('run').disabled = true;
+        convertTestCases(savedProblems[dropDown.value].testCases, sourceCode, dropDown.value)
+        .then(results => {
+            document.getElementById('run').disabled = false;
+            results = results.map(item => item.passed);
+            for(var i = 0 ; i < 5 ; i++) {
+                if(results[i] === true) {
+                    testCaseBulbs[i].style.backgroundColor = 'green';
+                } else {
+                    testCaseBulbs[i].style.backgroundColor = 'red';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error: ', error);
+        })
     }
-    
+
 </script>
 </html>
